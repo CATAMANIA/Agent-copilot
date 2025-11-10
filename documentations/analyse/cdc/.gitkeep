@@ -1,0 +1,8 @@
+# Analyses de Cahiers des Charges
+
+Ce dossier contient les analyses critiques des cahiers des charges générées par le chatmode Cahier-Des-Charges-Analyst.
+
+## Structure des fichiers
+- `analyse_critique_[nom_du_projet].md` - Rapport d'analyse critique
+- `questionnaire_approfondissement_[nom_du_projet].md` - Questions d'approfondissement
+- `matrice_priorisation_[nom_du_projet].md` - Matrice de priorisation révisée

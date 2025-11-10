@@ -1,0 +1,6 @@
+# Spécifications Techniques
+
+Ce dossier contient les spécifications techniques générées par les chatmodes Documentation et Specification.
+
+## Structure des fichiers
+- `[nom_du_composant]_spec.md` - Spécification technique du composant

@@ -1,0 +1,10 @@
+# Analyses de Sécurité
+
+Ce dossier contient les analyses de sécurité générées par le chatmode Security.
+
+## Structure des fichiers
+- `vulnerability_assessment_[nom_du_projet].md` - Évaluation des vulnérabilités
+- `security_audit_[nom_du_projet].md` - Audit de sécurité complet
+- `penetration_test_[nom_du_projet].md` - Tests de pénétration
+- `security_controls_[nom_du_projet].md` - Contrôles de sécurité
+- `incident_response_plan_[nom_du_projet].md` - Plan de réponse aux incidents

@@ -1,0 +1,9 @@
+# Code Reviews
+
+Ce dossier contient les revues de code générées par le chatmode CodeReview.
+
+## Structure des fichiers
+- `review_[nom_feature]_[date].md` - Revue de code générale
+- `security_review_[nom_feature]_[date].md` - Revue axée sécurité
+- `architecture_review_[nom_feature]_[date].md` - Revue architecturale
+- `performance_review_[nom_feature]_[date].md` - Revue de performance

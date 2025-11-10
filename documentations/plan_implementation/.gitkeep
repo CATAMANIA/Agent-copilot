@@ -1,0 +1,6 @@
+# Plans d'Implémentation
+
+Ce dossier contient les plans d'implémentation générés par le chatmode Plan.
+
+## Structure des fichiers
+- `[nom_de_la_tache].md` - Plan d'implémentation détaillé
