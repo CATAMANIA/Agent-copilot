@@ -105,6 +105,11 @@ function useApi<T>(
     }
   }, [url, staleTime]);
 
+  const refetch = useCallback(() => {
+    cacheRef.current.delete(url);
+    fetchData();
+  }, [fetchData, url]);
+
   useEffect(() => {
     if (enabled && refetchOnMount) {
       fetchData();
@@ -118,157 +123,616 @@ function useApi<T>(
   }, [fetchData, enabled, refetchOnMount]);
 
   return {
-    ...state,
-    refetch: fetchData
+    data: state.data,
+    loading: state.loading,
+    error: state.error,
+    refetch
+  };
+}
+
+// Form validation hook
+interface ValidationRule<T> {
+  required?: boolean;
+  minLength?: number;
+  maxLength?: number;
+  pattern?: RegExp;
+  custom?: (value: T) => string | null;
+}
+
+interface UseFormValidationOptions<T> {
+  validationRules: Record<keyof T, ValidationRule<any>>;
+  validateOnChange?: boolean;
+  validateOnBlur?: boolean;
+}
+
+function useFormValidation<T extends Record<string, any>>(
+  initialValues: T,
+  options: UseFormValidationOptions<T>
+) {
+  const [values, setValues] = useState<T>(initialValues);
+  const [errors, setErrors] = useState<Partial<Record<keyof T, string>>>({});
+  const [touched, setTouched] = useState<Partial<Record<keyof T, boolean>>>({});
+
+  const validateField = useCallback((name: keyof T, value: any): string | null => {
+    const rules = options.validationRules[name];
+    if (!rules) return null;
+
+    if (rules.required && (!value || value.toString().trim() === '')) {
+      return 'This field is required';
+    }
+
+    if (rules.minLength && value.toString().length < rules.minLength) {
+      return `Minimum length is ${rules.minLength}`;
+    }
+
+    if (rules.maxLength && value.toString().length > rules.maxLength) {
+      return `Maximum length is ${rules.maxLength}`;
+    }
+
+    if (rules.pattern && !rules.pattern.test(value.toString())) {
+      return 'Invalid format';
+    }
+
+    if (rules.custom) {
+      return rules.custom(value);
+    }
+
+    return null;
+  }, [options.validationRules]);
+
+  const validateForm = useCallback((): boolean => {
+    const newErrors: Partial<Record<keyof T, string>> = {};
+    
+    Object.keys(values).forEach(key => {
+      const error = validateField(key as keyof T, values[key as keyof T]);
+      if (error) {
+        newErrors[key as keyof T] = error;
+      }
+    });
+
+    setErrors(newErrors);
+    return Object.keys(newErrors).length === 0;
+  }, [values, validateField]);
+
+  const handleChange = useCallback((name: keyof T, value: any) => {
+    setValues(prev => ({ ...prev, [name]: value }));
+
+    if (options.validateOnChange) {
+      const error = validateField(name, value);
+      setErrors(prev => ({ ...prev, [name]: error || undefined }));
+    }
+  }, [validateField, options.validateOnChange]);
+
+  const handleBlur = useCallback((name: keyof T) => {
+    setTouched(prev => ({ ...prev, [name]: true }));
+
+    if (options.validateOnBlur) {
+      const error = validateField(name, values[name]);
+      setErrors(prev => ({ ...prev, [name]: error || undefined }));
+    }
+  }, [validateField, values, options.validateOnBlur]);
+
+  const reset = useCallback(() => {
+    setValues(initialValues);
+    setErrors({});
+    setTouched({});
+  }, [initialValues]);
+
+  return {
+    values,
+    errors,
+    touched,
+    handleChange,
+    handleBlur,
+    validateForm,
+    reset,
+    isValid: Object.keys(errors).length === 0
   };
 }
 ```
 
-### Advanced State Management with Context + Reducer
+### Advanced Component Patterns
 ```typescript
-interface AppState {
-  user: User | null;
-  theme: 'light' | 'dark';
-  notifications: Notification[];
-  loading: Record<string, boolean>;
+// Higher-Order Component with TypeScript
+interface WithLoadingProps {
+  loading?: boolean;
 }
 
-type AppAction = 
-  | { type: 'SET_USER'; payload: User | null }
-  | { type: 'TOGGLE_THEME' }
-  | { type: 'ADD_NOTIFICATION'; payload: Notification }
-  | { type: 'REMOVE_NOTIFICATION'; payload: string }
-  | { type: 'SET_LOADING'; payload: { key: string; loading: boolean } };
+function withLoading<P extends object>(
+  Component: React.ComponentType<P>
+): React.ComponentType<P & WithLoadingProps> {
+  const WrappedComponent = (props: P & WithLoadingProps) => {
+    const { loading, ...restProps } = props;
 
-function appReducer(state: AppState, action: AppAction): AppState {
+    if (loading) {
+      return (
+        <div className="loading-spinner">
+          <div className="spinner" />
+          <span>Loading...</span>
+        </div>
+      );
+    }
+
+    return <Component {...(restProps as P)} />;
+  };
+
+  WrappedComponent.displayName = `withLoading(${Component.displayName || Component.name})`;
+  
+  return WrappedComponent;
+}
+
+// Render Props Pattern
+interface RenderPropsState<T> {
+  data: T | null;
+  loading: boolean;
+  error: string | null;
+}
+
+interface DataFetcherProps<T> {
+  url: string;
+  children: (state: RenderPropsState<T>) => React.ReactNode;
+}
+
+function DataFetcher<T>({ url, children }: DataFetcherProps<T>) {
+  const { data, loading, error } = useApi<T>(url);
+
+  return <>{children({ data, loading, error })}</>;
+}
+
+// Usage example
+function UserProfile({ userId }: { userId: string }) {
+  return (
+    <DataFetcher<User> url={`/api/users/${userId}`}>
+      {({ data: user, loading, error }) => {
+        if (loading) return <div>Loading user...</div>;
+        if (error) return <div>Error: {error}</div>;
+        if (!user) return <div>User not found</div>;
+
+        return (
+          <div className="user-profile">
+            <h1>{user.firstName} {user.lastName}</h1>
+            <p>{user.email}</p>
+          </div>
+        );
+      }}
+    </DataFetcher>
+  );
+}
+
+// Compound Component Pattern
+interface TabsContextType {
+  activeTab: string;
+  setActiveTab: (tab: string) => void;
+}
+
+const TabsContext = createContext<TabsContextType | null>(null);
+
+interface TabsProps {
+  children: React.ReactNode;
+  defaultTab?: string;
+}
+
+function Tabs({ children, defaultTab }: TabsProps) {
+  const [activeTab, setActiveTab] = useState(defaultTab || '');
+
+  const contextValue = useMemo(() => ({
+    activeTab,
+    setActiveTab
+  }), [activeTab]);
+
+  return (
+    <TabsContext.Provider value={contextValue}>
+      <div className="tabs-container">
+        {children}
+      </div>
+    </TabsContext.Provider>
+  );
+}
+
+function TabList({ children }: { children: React.ReactNode }) {
+  return <div className="tab-list" role="tablist">{children}</div>;
+}
+
+interface TabProps {
+  value: string;
+  children: React.ReactNode;
+}
+
+function Tab({ value, children }: TabProps) {
+  const context = useContext(TabsContext);
+  if (!context) throw new Error('Tab must be used within Tabs');
+
+  const { activeTab, setActiveTab } = context;
+  const isActive = activeTab === value;
+
+  return (
+    <button
+      role="tab"
+      aria-selected={isActive}
+      className={`tab ${isActive ? 'active' : ''}`}
+      onClick={() => setActiveTab(value)}
+    >
+      {children}
+    </button>
+  );
+}
+
+function TabPanels({ children }: { children: React.ReactNode }) {
+  return <div className="tab-panels">{children}</div>;
+}
+
+function TabPanel({ value, children }: TabProps) {
+  const context = useContext(TabsContext);
+  if (!context) throw new Error('TabPanel must be used within Tabs');
+
+  const { activeTab } = context;
+  
+  if (activeTab !== value) return null;
+
+  return (
+    <div role="tabpanel" className="tab-panel">
+      {children}
+    </div>
+  );
+}
+
+// Compound component exports
+Tabs.TabList = TabList;
+Tabs.Tab = Tab;
+Tabs.TabPanels = TabPanels;
+Tabs.TabPanel = TabPanel;
+
+// Usage
+function App() {
+  return (
+    <Tabs defaultTab="profile">
+      <Tabs.TabList>
+        <Tabs.Tab value="profile">Profile</Tabs.Tab>
+        <Tabs.Tab value="settings">Settings</Tabs.Tab>
+        <Tabs.Tab value="billing">Billing</Tabs.Tab>
+      </Tabs.TabList>
+
+      <Tabs.TabPanels>
+        <Tabs.TabPanel value="profile">
+          <UserProfile userId="123" />
+        </Tabs.TabPanel>
+        <Tabs.TabPanel value="settings">
+          <UserSettings />
+        </Tabs.TabPanel>
+        <Tabs.TabPanel value="billing">
+          <UserBilling />
+        </Tabs.TabPanel>
+      </Tabs.TabPanels>
+    </Tabs>
+  );
+}
+```
+
+## 2. State Management Patterns
+
+### Context + useReducer for Complex State
+```typescript
+// Action types
+type UserAction =
+  | { type: 'FETCH_USERS_START' }
+  | { type: 'FETCH_USERS_SUCCESS'; payload: User[] }
+  | { type: 'FETCH_USERS_ERROR'; payload: string }
+  | { type: 'ADD_USER'; payload: User }
+  | { type: 'UPDATE_USER'; payload: User }
+  | { type: 'DELETE_USER'; payload: string }
+  | { type: 'SELECT_USER'; payload: string | null }
+  | { type: 'SET_FILTER'; payload: string };
+
+// State interface
+interface UserState {
+  users: User[];
+  selectedUserId: string | null;
+  filter: string;
+  loading: boolean;
+  error: string | null;
+}
+
+// Initial state
+const initialState: UserState = {
+  users: [],
+  selectedUserId: null,
+  filter: '',
+  loading: false,
+  error: null
+};
+
+// Reducer
+function userReducer(state: UserState, action: UserAction): UserState {
   switch (action.type) {
-    case 'SET_USER':
-      return { ...state, user: action.payload };
+    case 'FETCH_USERS_START':
+      return { ...state, loading: true, error: null };
     
-    case 'TOGGLE_THEME':
+    case 'FETCH_USERS_SUCCESS':
+      return { ...state, loading: false, users: action.payload };
+    
+    case 'FETCH_USERS_ERROR':
+      return { ...state, loading: false, error: action.payload };
+    
+    case 'ADD_USER':
       return { 
         ...state, 
-        theme: state.theme === 'light' ? 'dark' : 'light' 
+        users: [...state.users, action.payload] 
       };
     
-    case 'ADD_NOTIFICATION':
+    case 'UPDATE_USER':
       return {
         ...state,
-        notifications: [...state.notifications, action.payload]
-      };
-    
-    case 'REMOVE_NOTIFICATION':
-      return {
-        ...state,
-        notifications: state.notifications.filter(
-          notification => notification.id !== action.payload
+        users: state.users.map(user =>
+          user.id === action.payload.id ? action.payload : user
         )
       };
     
-    case 'SET_LOADING':
+    case 'DELETE_USER':
       return {
         ...state,
-        loading: {
-          ...state.loading,
-          [action.payload.key]: action.payload.loading
-        }
+        users: state.users.filter(user => user.id !== action.payload),
+        selectedUserId: state.selectedUserId === action.payload ? null : state.selectedUserId
       };
+    
+    case 'SELECT_USER':
+      return { ...state, selectedUserId: action.payload };
+    
+    case 'SET_FILTER':
+      return { ...state, filter: action.payload };
     
     default:
       return state;
   }
 }
 
-const AppContext = createContext<{
-  state: AppState;
-  dispatch: React.Dispatch<AppAction>;
-} | null>(null);
+// Context
+interface UserContextType {
+  state: UserState;
+  dispatch: React.Dispatch<UserAction>;
+  actions: {
+    fetchUsers: () => Promise<void>;
+    addUser: (user: Omit<User, 'id'>) => Promise<void>;
+    updateUser: (user: User) => Promise<void>;
+    deleteUser: (id: string) => Promise<void>;
+    selectUser: (id: string | null) => void;
+    setFilter: (filter: string) => void;
+  };
+  selectors: {
+    filteredUsers: User[];
+    selectedUser: User | null;
+  };
+}
 
-export function AppProvider({ children }: { children: React.ReactNode }) {
-  const [state, dispatch] = useReducer(appReducer, {
-    user: null,
-    theme: 'light',
-    notifications: [],
-    loading: {}
-  });
+const UserContext = createContext<UserContextType | null>(null);
 
-  const value = useMemo(() => ({ state, dispatch }), [state]);
+// Provider component
+interface UserProviderProps {
+  children: React.ReactNode;
+}
+
+export function UserProvider({ children }: UserProviderProps) {
+  const [state, dispatch] = useReducer(userReducer, initialState);
+
+  const actions = useMemo(() => ({
+    fetchUsers: async () => {
+      dispatch({ type: 'FETCH_USERS_START' });
+      try {
+        const response = await fetch('/api/users');
+        if (!response.ok) throw new Error('Failed to fetch users');
+        const users = await response.json();
+        dispatch({ type: 'FETCH_USERS_SUCCESS', payload: users });
+      } catch (error) {
+        dispatch({ 
+          type: 'FETCH_USERS_ERROR', 
+          payload: error instanceof Error ? error.message : 'Unknown error' 
+        });
+      }
+    },
+
+    addUser: async (userData: Omit<User, 'id'>) => {
+      try {
+        const response = await fetch('/api/users', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(userData)
+        });
+        if (!response.ok) throw new Error('Failed to create user');
+        const newUser = await response.json();
+        dispatch({ type: 'ADD_USER', payload: newUser });
+      } catch (error) {
+        dispatch({ 
+          type: 'FETCH_USERS_ERROR', 
+          payload: error instanceof Error ? error.message : 'Failed to create user' 
+        });
+      }
+    },
+
+    updateUser: async (user: User) => {
+      try {
+        const response = await fetch(`/api/users/${user.id}`, {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(user)
+        });
+        if (!response.ok) throw new Error('Failed to update user');
+        const updatedUser = await response.json();
+        dispatch({ type: 'UPDATE_USER', payload: updatedUser });
+      } catch (error) {
+        dispatch({ 
+          type: 'FETCH_USERS_ERROR', 
+          payload: error instanceof Error ? error.message : 'Failed to update user' 
+        });
+      }
+    },
+
+    deleteUser: async (id: string) => {
+      try {
+        const response = await fetch(`/api/users/${id}`, { method: 'DELETE' });
+        if (!response.ok) throw new Error('Failed to delete user');
+        dispatch({ type: 'DELETE_USER', payload: id });
+      } catch (error) {
+        dispatch({ 
+          type: 'FETCH_USERS_ERROR', 
+          payload: error instanceof Error ? error.message : 'Failed to delete user' 
+        });
+      }
+    },
+
+    selectUser: (id: string | null) => {
+      dispatch({ type: 'SELECT_USER', payload: id });
+    },
+
+    setFilter: (filter: string) => {
+      dispatch({ type: 'SET_FILTER', payload: filter });
+    }
+  }), []);
+
+  const selectors = useMemo(() => ({
+    filteredUsers: state.users.filter(user =>
+      user.firstName.toLowerCase().includes(state.filter.toLowerCase()) ||
+      user.lastName.toLowerCase().includes(state.filter.toLowerCase()) ||
+      user.email.toLowerCase().includes(state.filter.toLowerCase())
+    ),
+    selectedUser: state.users.find(user => user.id === state.selectedUserId) || null
+  }), [state.users, state.filter, state.selectedUserId]);
+
+  const contextValue = useMemo(() => ({
+    state,
+    dispatch,
+    actions,
+    selectors
+  }), [state, actions, selectors]);
 
   return (
-    <AppContext.Provider value={value}>
+    <UserContext.Provider value={contextValue}>
       {children}
-    </AppContext.Provider>
+    </UserContext.Provider>
   );
 }
 
-export function useAppContext() {
-  const context = useContext(AppContext);
+// Custom hook for using the context
+export function useUsers() {
+  const context = useContext(UserContext);
   if (!context) {
-    throw new Error('useAppContext must be used within AppProvider');
+    throw new Error('useUsers must be used within a UserProvider');
   }
   return context;
 }
 ```
 
-## 2. Performance Optimization
+## 3. Performance Optimization
 
-### Memoization and Virtual Scrolling
+### React.memo and useMemo/useCallback
 ```typescript
-// Optimized list component with virtualization
-interface VirtualListProps<T> {
+// Memoized component with proper prop comparison
+interface UserCardProps {
+  user: User;
+  onSelect: (user: User) => void;
+  onDelete: (id: string) => void;
+  isSelected: boolean;
+}
+
+const UserCard = memo<UserCardProps>(({ user, onSelect, onDelete, isSelected }) => {
+  // Memoize handlers to prevent unnecessary re-renders
+  const handleSelect = useCallback(() => {
+    onSelect(user);
+  }, [onSelect, user]);
+
+  const handleDelete = useCallback(() => {
+    if (confirm('Are you sure you want to delete this user?')) {
+      onDelete(user.id);
+    }
+  }, [onDelete, user.id]);
+
+  // Memoize computed values
+  const displayName = useMemo(() => {
+    return `${user.firstName} ${user.lastName}`;
+  }, [user.firstName, user.lastName]);
+
+  return (
+    <div 
+      className={`user-card ${isSelected ? 'selected' : ''}`}
+      onClick={handleSelect}
+    >
+      <div className="user-avatar">
+        {user.firstName.charAt(0)}{user.lastName.charAt(0)}
+      </div>
+      <div className="user-info">
+        <h3>{displayName}</h3>
+        <p>{user.email}</p>
+      </div>
+      <button 
+        className="delete-btn"
+        onClick={handleDelete}
+        aria-label={`Delete ${displayName}`}
+      >
+        ×
+      </button>
+    </div>
+  );
+}, (prevProps, nextProps) => {
+  // Custom comparison function
+  return (
+    prevProps.user.id === nextProps.user.id &&
+    prevProps.user.firstName === nextProps.user.firstName &&
+    prevProps.user.lastName === nextProps.user.lastName &&
+    prevProps.user.email === nextProps.user.email &&
+    prevProps.isSelected === nextProps.isSelected &&
+    prevProps.onSelect === nextProps.onSelect &&
+    prevProps.onDelete === nextProps.onDelete
+  );
+});
+
+UserCard.displayName = 'UserCard';
+
+// Virtual scrolling for large lists
+interface VirtualizedListProps<T> {
   items: T[];
   itemHeight: number;
   containerHeight: number;
   renderItem: (item: T, index: number) => React.ReactNode;
-  keyExtractor: (item: T) => string;
+  keyExtractor: (item: T) => string | number;
 }
 
-function VirtualList<T>({
+function VirtualizedList<T>({
   items,
   itemHeight,
   containerHeight,
   renderItem,
   keyExtractor
-}: VirtualListProps<T>) {
+}: VirtualizedListProps<T>) {
   const [scrollTop, setScrollTop] = useState(0);
-  const scrollElementRef = useRef<HTMLDivElement>(null);
-
+  
   const visibleItems = useMemo(() => {
-    const containerScrollTop = scrollTop;
-    const startIndex = Math.floor(containerScrollTop / itemHeight);
+    const startIndex = Math.floor(scrollTop / itemHeight);
     const endIndex = Math.min(
       startIndex + Math.ceil(containerHeight / itemHeight) + 1,
       items.length
     );
+    
+    return items.slice(startIndex, endIndex).map((item, index) => ({
+      item,
+      index: startIndex + index
+    }));
+  }, [items, scrollTop, itemHeight, containerHeight]);
 
-    return {
-      startIndex,
-      endIndex,
-      visibleItems: items.slice(startIndex, endIndex)
-    };
-  }, [scrollTop, itemHeight, containerHeight, items]);
+  const totalHeight = items.length * itemHeight;
+  const offsetY = Math.floor(scrollTop / itemHeight) * itemHeight;
 
   const handleScroll = useCallback((e: React.UIEvent<HTMLDivElement>) => {
     setScrollTop(e.currentTarget.scrollTop);
   }, []);
 
-  const totalHeight = items.length * itemHeight;
-  const offsetY = visibleItems.startIndex * itemHeight;
-
   return (
-    <div
-      ref={scrollElementRef}
+    <div 
       style={{ height: containerHeight, overflow: 'auto' }}
       onScroll={handleScroll}
     >
       <div style={{ height: totalHeight, position: 'relative' }}>
         <div style={{ transform: `translateY(${offsetY}px)` }}>
-          {visibleItems.visibleItems.map((item, index) => (
-            <div
-              key={keyExtractor(item)}
-              style={{ height: itemHeight }}
-            >
-              {renderItem(item, visibleItems.startIndex + index)}
+          {visibleItems.map(({ item, index }) => (
+            <div key={keyExtractor(item)} style={{ height: itemHeight }}>
+              {renderItem(item, index)}
             </div>
           ))}
         </div>
@@ -278,400 +742,286 @@ function VirtualList<T>({
 }
 ```
 
-### Code Splitting and Lazy Loading
+## 4. Testing Excellence
+
+### React Testing Library Best Practices
 ```typescript
-// Route-based code splitting
-const Dashboard = React.lazy(() => import('../components/Dashboard'));
-const Profile = React.lazy(() => import('../components/Profile'));
-const Settings = React.lazy(() => import('../components/Settings'));
+import { render, screen, waitFor, fireEvent, act } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
+import { UserProvider } from '../contexts/UserContext';
+import { UserList } from '../components/UserList';
 
-// Component-based lazy loading with error boundaries
-function LazyComponent({ 
-  children, 
-  fallback = <div>Loading...</div> 
-}: { 
-  children: React.ReactNode;
-  fallback?: React.ReactNode;
-}) {
-  return (
-    <ErrorBoundary fallback={<div>Something went wrong</div>}>
-      <Suspense fallback={fallback}>
-        {children}
-      </Suspense>
-    </ErrorBoundary>
-  );
-}
+// Mock API responses
+const mockUsers: User[] = [
+  { id: '1', firstName: 'John', lastName: 'Doe', email: 'john@example.com', isActive: true },
+  { id: '2', firstName: 'Jane', lastName: 'Smith', email: 'jane@example.com', isActive: true }
+];
 
-// Image lazy loading with intersection observer
-function LazyImage({ 
-  src, 
-  alt, 
-  className,
-  placeholder 
-}: {
-  src: string;
-  alt: string;
-  className?: string;
-  placeholder?: string;
-}) {
-  const [imageSrc, setImageSrc] = useState(placeholder);
-  const [imageRef, setImageRef] = useState<HTMLImageElement | null>(null);
+// Mock fetch
+global.fetch = jest.fn();
 
-  useEffect(() => {
-    let observer: IntersectionObserver;
-    
-    if (imageRef && imageSrc !== src) {
-      observer = new IntersectionObserver(
-        entries => {
-          entries.forEach(entry => {
-            if (entry.isIntersecting) {
-              setImageSrc(src);
-              observer.unobserve(imageRef);
-            }
-          });
-        },
-        { threshold: 0.1 }
-      );
-      observer.observe(imageRef);
-    }
-    
-    return () => {
-      if (observer && imageRef) {
-        observer.unobserve(imageRef);
-      }
-    };
-  }, [imageRef, imageSrc, src]);
+describe('UserList Component', () => {
+  beforeEach(() => {
+    (fetch as jest.Mock).mockClear();
+  });
 
-  return (
-    <img
-      ref={setImageRef}
-      src={imageSrc}
-      alt={alt}
-      className={className}
-    />
-  );
-}
-```
-
-## 3. Advanced TypeScript Integration
-
-### Generic Components with Constraints
-```typescript
-// Generic form component with type safety
-interface FormFieldConfig<T> {
-  name: keyof T;
-  label: string;
-  type: 'text' | 'email' | 'number' | 'select' | 'textarea';
-  validation?: (value: any) => string | null;
-  options?: Array<{ value: any; label: string }>;
-  required?: boolean;
-}
-
-interface FormProps<T extends Record<string, any>> {
-  initialData: T;
-  fields: FormFieldConfig<T>[];
-  onSubmit: (data: T) => Promise<void> | void;
-  validationSchema?: (data: T) => Record<keyof T, string | null>;
-}
-
-function Form<T extends Record<string, any>>({
-  initialData,
-  fields,
-  onSubmit,
-  validationSchema
-}: FormProps<T>) {
-  const [data, setData] = useState<T>(initialData);
-  const [errors, setErrors] = useState<Partial<Record<keyof T, string>>>({});
-  const [isSubmitting, setIsSubmitting] = useState(false);
-
-  const updateField = useCallback((name: keyof T, value: any) => {
-    setData(prev => ({ ...prev, [name]: value }));
-    
-    // Clear error when field is updated
-    if (errors[name]) {
-      setErrors(prev => ({ ...prev, [name]: undefined }));
-    }
-  }, [errors]);
-
-  const validateForm = useCallback(() => {
-    const newErrors: Partial<Record<keyof T, string>> = {};
-    
-    // Field-level validation
-    fields.forEach(field => {
-      if (field.required && !data[field.name]) {
-        newErrors[field.name] = `${field.label} is required`;
-      } else if (field.validation) {
-        const error = field.validation(data[field.name]);
-        if (error) newErrors[field.name] = error;
-      }
-    });
-    
-    // Form-level validation
-    if (validationSchema) {
-      const schemaErrors = validationSchema(data);
-      Object.entries(schemaErrors).forEach(([key, error]) => {
-        if (error) newErrors[key as keyof T] = error;
-      });
-    }
-    
-    setErrors(newErrors);
-    return Object.keys(newErrors).length === 0;
-  }, [data, fields, validationSchema]);
-
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    
-    if (!validateForm()) return;
-    
-    setIsSubmitting(true);
-    try {
-      await onSubmit(data);
-    } catch (error) {
-      console.error('Form submission error:', error);
-    } finally {
-      setIsSubmitting(false);
-    }
+  const renderWithProvider = (component: React.ReactElement) => {
+    return render(
+      <UserProvider>
+        {component}
+      </UserProvider>
+    );
   };
 
-  return (
-    <form onSubmit={handleSubmit} className="space-y-4">
-      {fields.map(field => (
-        <div key={String(field.name)} className="form-field">
-          <label htmlFor={String(field.name)} className="form-label">
-            {field.label}
-            {field.required && <span className="text-red-500">*</span>}
-          </label>
-          
-          {field.type === 'select' ? (
-            <select
-              id={String(field.name)}
-              value={data[field.name] || ''}
-              onChange={(e) => updateField(field.name, e.target.value)}
-              className="form-select"
-            >
-              <option value="">Select...</option>
-              {field.options?.map(option => (
-                <option key={option.value} value={option.value}>
-                  {option.label}
-                </option>
-              ))}
-            </select>
-          ) : field.type === 'textarea' ? (
-            <textarea
-              id={String(field.name)}
-              value={data[field.name] || ''}
-              onChange={(e) => updateField(field.name, e.target.value)}
-              className="form-textarea"
-              rows={4}
-            />
-          ) : (
-            <input
-              id={String(field.name)}
-              type={field.type}
-              value={data[field.name] || ''}
-              onChange={(e) => updateField(
-                field.name, 
-                field.type === 'number' ? Number(e.target.value) : e.target.value
-              )}
-              className="form-input"
-            />
-          )}
-          
-          {errors[field.name] && (
-            <span className="form-error">{errors[field.name]}</span>
-          )}
-        </div>
-      ))}
-      
-      <button
-        type="submit"
-        disabled={isSubmitting}
-        className="btn btn-primary"
-      >
-        {isSubmitting ? 'Submitting...' : 'Submit'}
-      </button>
-    </form>
-  );
-}
-```
-
-## 4. Error Boundaries and Error Handling
-
-```typescript
-interface ErrorBoundaryState {
-  hasError: boolean;
-  error: Error | null;
-  errorInfo: ErrorInfo | null;
-}
-
-class ErrorBoundary extends Component<
-  { children: ReactNode; fallback?: ComponentType<{ error: Error }> },
-  ErrorBoundaryState
-> {
-  constructor(props: any) {
-    super(props);
-    this.state = {
-      hasError: false,
-      error: null,
-      errorInfo: null
-    };
-  }
-
-  static getDerivedStateFromError(error: Error): ErrorBoundaryState {
-    return {
-      hasError: true,
-      error,
-      errorInfo: null
-    };
-  }
-
-  componentDidCatch(error: Error, errorInfo: ErrorInfo) {
-    this.setState({
-      error,
-      errorInfo
+  it('should display users after loading', async () => {
+    // Mock successful API response
+    (fetch as jest.Mock).mockResolvedValueOnce({
+      ok: true,
+      json: () => Promise.resolve(mockUsers)
     });
-    
-    // Log error to monitoring service
-    console.error('ErrorBoundary caught an error:', error, errorInfo);
-  }
 
-  render() {
-    if (this.state.hasError) {
-      const FallbackComponent = this.props.fallback || DefaultErrorFallback;
-      return <FallbackComponent error={this.state.error!} />;
-    }
+    renderWithProvider(<UserList />);
 
-    return this.props.children;
-  }
-}
+    // Check loading state
+    expect(screen.getByText(/loading/i)).toBeInTheDocument();
 
-function DefaultErrorFallback({ error }: { error: Error }) {
-  return (
-    <div className="error-boundary">
-      <h2>Something went wrong</h2>
-      <details style={{ whiteSpace: 'pre-wrap' }}>
-        {error && error.toString()}
-      </details>
-    </div>
-  );
-}
+    // Wait for users to load
+    await waitFor(() => {
+      expect(screen.getByText('John Doe')).toBeInTheDocument();
+      expect(screen.getByText('jane@example.com')).toBeInTheDocument();
+    });
+
+    // Ensure loading is done
+    expect(screen.queryByText(/loading/i)).not.toBeInTheDocument();
+  });
+
+  it('should filter users based on search input', async () => {
+    (fetch as jest.Mock).mockResolvedValueOnce({
+      ok: true,
+      json: () => Promise.resolve(mockUsers)
+    });
+
+    const user = userEvent.setup();
+    renderWithProvider(<UserList />);
+
+    // Wait for users to load
+    await waitFor(() => {
+      expect(screen.getByText('John Doe')).toBeInTheDocument();
+    });
+
+    // Type in search input
+    const searchInput = screen.getByRole('textbox', { name: /search/i });
+    await user.type(searchInput, 'jane');
+
+    // Check filtered results
+    expect(screen.getByText('Jane Smith')).toBeInTheDocument();
+    expect(screen.queryByText('John Doe')).not.toBeInTheDocument();
+  });
+
+  it('should handle user deletion', async () => {
+    (fetch as jest.Mock)
+      .mockResolvedValueOnce({
+        ok: true,
+        json: () => Promise.resolve(mockUsers)
+      })
+      .mockResolvedValueOnce({ ok: true }); // Delete response
+
+    // Mock window.confirm
+    const confirmSpy = jest.spyOn(window, 'confirm').mockReturnValue(true);
+
+    const user = userEvent.setup();
+    renderWithProvider(<UserList />);
+
+    // Wait for users to load
+    await waitFor(() => {
+      expect(screen.getByText('John Doe')).toBeInTheDocument();
+    });
+
+    // Click delete button
+    const deleteButton = screen.getByRole('button', { name: /delete john doe/i });
+    await user.click(deleteButton);
+
+    // Verify API call
+    await waitFor(() => {
+      expect(fetch).toHaveBeenCalledWith('/api/users/1', { method: 'DELETE' });
+    });
+
+    confirmSpy.mockRestore();
+  });
+
+  it('should handle API errors gracefully', async () => {
+    (fetch as jest.Mock).mockRejectedValueOnce(new Error('API Error'));
+
+    renderWithProvider(<UserList />);
+
+    // Wait for error state
+    await waitFor(() => {
+      expect(screen.getByText(/error/i)).toBeInTheDocument();
+    });
+  });
+});
+
+// Custom hook testing
+import { renderHook, act } from '@testing-library/react';
+import { useFormValidation } from '../hooks/useFormValidation';
+
+describe('useFormValidation Hook', () => {
+  const validationRules = {
+    email: { required: true, pattern: /^[^\s@]+@[^\s@]+\.[^\s@]+$/ },
+    password: { required: true, minLength: 8 }
+  };
+
+  it('should validate required fields', () => {
+    const { result } = renderHook(() =>
+      useFormValidation(
+        { email: '', password: '' },
+        { validationRules }
+      )
+    );
+
+    act(() => {
+      result.current.validateForm();
+    });
+
+    expect(result.current.errors.email).toBe('This field is required');
+    expect(result.current.errors.password).toBe('This field is required');
+    expect(result.current.isValid).toBe(false);
+  });
+
+  it('should validate email format', () => {
+    const { result } = renderHook(() =>
+      useFormValidation(
+        { email: 'invalid-email', password: 'validpassword' },
+        { validationRules }
+      )
+    );
+
+    act(() => {
+      result.current.handleChange('email', 'invalid-email');
+      result.current.validateForm();
+    });
+
+    expect(result.current.errors.email).toBe('Invalid format');
+  });
+
+  it('should pass validation with valid inputs', () => {
+    const { result } = renderHook(() =>
+      useFormValidation(
+        { email: 'test@example.com', password: 'validpassword' },
+        { validationRules }
+      )
+    );
+
+    act(() => {
+      result.current.validateForm();
+    });
+
+    expect(result.current.isValid).toBe(true);
+    expect(Object.keys(result.current.errors)).toHaveLength(0);
+  });
+});
 ```
 
-## 5. Accessibility and ARIA Compliance
+## 5. Modern Build Tools & Configuration
 
+### Vite Configuration
 ```typescript
-// Accessible modal component
-interface ModalProps {
-  isOpen: boolean;
-  onClose: () => void;
-  title: string;
-  children: React.ReactNode;
-  size?: 'sm' | 'md' | 'lg';
-}
+// vite.config.ts
+import { defineConfig } from 'vite';
+import react from '@vitejs/plugin-react-swc';
+import { resolve } from 'path';
 
-function Modal({ isOpen, onClose, title, children, size = 'md' }: ModalProps) {
-  const modalRef = useRef<HTMLDivElement>(null);
-  const previouslyFocusedElementRef = useRef<Element | null>(null);
-
-  useEffect(() => {
-    if (isOpen) {
-      previouslyFocusedElementRef.current = document.activeElement;
-      modalRef.current?.focus();
-    } else {
-      (previouslyFocusedElementRef.current as HTMLElement)?.focus();
+export default defineConfig({
+  plugins: [react()],
+  resolve: {
+    alias: {
+      '@': resolve(__dirname, './src'),
+      '@components': resolve(__dirname, './src/components'),
+      '@hooks': resolve(__dirname, './src/hooks'),
+      '@utils': resolve(__dirname, './src/utils'),
+      '@types': resolve(__dirname, './src/types')
     }
-  }, [isOpen]);
-
-  useEffect(() => {
-    const handleEscape = (event: KeyboardEvent) => {
-      if (event.key === 'Escape') {
-        onClose();
+  },
+  build: {
+    rollupOptions: {
+      output: {
+        manualChunks: {
+          vendor: ['react', 'react-dom'],
+          router: ['react-router-dom'],
+          ui: ['@headlessui/react', '@heroicons/react']
+        }
       }
-    };
-
-    if (isOpen) {
-      document.addEventListener('keydown', handleEscape);
-      document.body.style.overflow = 'hidden';
+    },
+    sourcemap: true,
+    target: 'esnext'
+  },
+  optimizeDeps: {
+    include: ['react', 'react-dom']
+  },
+  server: {
+    port: 3000,
+    proxy: {
+      '/api': {
+        target: 'http://localhost:8080',
+        changeOrigin: true,
+        secure: false
+      }
     }
+  }
+});
+```
 
-    return () => {
-      document.removeEventListener('keydown', handleEscape);
-      document.body.style.overflow = 'unset';
-    };
-  }, [isOpen, onClose]);
-
-  if (!isOpen) return null;
-
-  return createPortal(
-    <div
-      className="modal-overlay"
-      onClick={(e) => e.target === e.currentTarget && onClose()}
-      role="dialog"
-      aria-modal="true"
-      aria-labelledby="modal-title"
-    >
-      <div
-        ref={modalRef}
-        className={`modal-content modal-${size}`}
-        tabIndex={-1}
-      >
-        <div className="modal-header">
-          <h2 id="modal-title" className="modal-title">
-            {title}
-          </h2>
-          <button
-            onClick={onClose}
-            className="modal-close"
-            aria-label="Close modal"
-          >
-            ×
-          </button>
-        </div>
-        <div className="modal-body">
-          {children}
-        </div>
-      </div>
-    </div>,
-    document.body
-  );
+### TypeScript Configuration
+```json
+// tsconfig.json
+{
+  "compilerOptions": {
+    "target": "ES2020",
+    "lib": ["ES2020", "DOM", "DOM.Iterable"],
+    "allowJs": true,
+    "skipLibCheck": true,
+    "esModuleInterop": true,
+    "allowSyntheticDefaultImports": true,
+    "strict": true,
+    "forceConsistentCasingInFileNames": true,
+    "noFallthroughCasesInSwitch": true,
+    "module": "esnext",
+    "moduleResolution": "bundler",
+    "resolveJsonModule": true,
+    "isolatedModules": true,
+    "noEmit": true,
+    "jsx": "react-jsx",
+    "baseUrl": "./src",
+    "paths": {
+      "@/*": ["*"],
+      "@components/*": ["components/*"],
+      "@hooks/*": ["hooks/*"],
+      "@utils/*": ["utils/*"],
+      "@types/*": ["types/*"]
+    }
+  },
+  "include": [
+    "src/**/*"
+  ],
+  "exclude": [
+    "node_modules",
+    "dist"
+  ]
 }
 ```
 
-## Core Development Principles
+**React Development Best Practices:**
 
-1. **Component Composition Over Inheritance**
-   - Prefer composition patterns and render props
-   - Use compound components for flexible APIs
-   - Implement inversion of control
+1. **Component Design**: Single responsibility, composition over inheritance
+2. **Performance**: Proper memoization, virtual scrolling, code splitting
+3. **Testing**: Comprehensive unit/integration tests with React Testing Library
+4. **Type Safety**: Strict TypeScript configuration and proper typing
+5. **Code Quality**: ESLint, Prettier, Husky pre-commit hooks
+6. **State Management**: Local state first, Context for shared state, external libraries for complex needs
 
-2. **Performance First**
-   - Use React.memo(), useMemo(), useCallback() strategically
-   - Implement proper key props for lists
-   - Avoid unnecessary re-renders
-   - Use code splitting and lazy loading
-
-3. **Type Safety**
-   - Strict TypeScript configuration
-   - Generic components with proper constraints
-   - Discriminated unions for state management
-   - Proper error handling types
-
-4. **Accessibility**
-   - Semantic HTML elements
-   - Proper ARIA attributes
-   - Keyboard navigation support
-   - Screen reader compatibility
-
-5. **Testing Strategy**
-   - Unit tests with Jest and Testing Library
-   - Integration tests for user workflows
-   - Visual regression testing
-   - Performance testing
-
-When working with React code, I will:
-- Apply these patterns and principles
-- Ensure TypeScript safety and modern React features
-- Focus on performance optimization
-- Implement accessibility best practices
-- Provide comprehensive testing strategies
-- Follow the team's official standards for security and accessibility
+**Deliverables:**
+- Modern React applications with TypeScript
+- Scalable component architecture
+- Comprehensive test coverage
+- Performance-optimized user interfaces
+- Production-ready build configuration
