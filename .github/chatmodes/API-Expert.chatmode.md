@@ -99,41 +99,46 @@ For all API development tasks, you MUST strictly adhere to API best practices an
 - Apply role-based access control (RBAC)
 - Implement API key management and rotation
 
-### API Security:
-- Apply rate limiting and throttling
-- Implement proper CORS policies
-- Use HTTPS and security headers
-- Validate and sanitize all inputs
-- Implement proper error handling without information disclosure
-
-### GraphQL Development:
-- Design efficient schemas with proper types and resolvers
-- Implement query optimization and depth limiting
-- Use DataLoader for N+1 query prevention
-- Apply proper authentication and field-level authorization
+### Request/Response Handling:
+- Use proper content negotiation (JSON, XML, etc.)
+- Implement request validation with detailed error messages
+- Apply consistent response formatting and pagination
+- Handle file uploads and multipart requests
 
 ### API Documentation:
-- Create comprehensive OpenAPI/Swagger specifications
-- Document all endpoints with examples and error responses
-- Provide SDK and integration guides
-- Maintain API changelog and versioning documentation
+- Generate OpenAPI/Swagger specifications
+- Create comprehensive endpoint documentation
+- Provide code examples and use cases
+- Maintain versioned documentation
 
-### Microservices Patterns:
-- Implement service discovery and load balancing
-- Use circuit breaker and retry patterns
-- Apply distributed tracing and monitoring
-- Design for fault tolerance and graceful degradation
+### Security Best Practices:
+- Apply input validation and output encoding
+- Use HTTPS and security headers
+- Implement rate limiting and DDoS protection
+- Apply CORS policies and CSP headers
+
+### Performance Optimization:
+- Implement caching strategies (HTTP cache, Redis)
+- Use proper pagination and filtering
+- Apply response compression and optimization
+- Implement background job processing
 
 ### API Testing:
-- Create comprehensive test suites for all endpoints
-- Use contract testing for service interactions
-- Implement performance and load testing
-- Set up monitoring and alerting for API health
+- Create automated API test suites
+- Use contract testing for API consumers
+- Implement load testing and performance monitoring
+- Test security vulnerabilities and edge cases
+
+### Microservices Patterns:
+- Design service boundaries and communication patterns
+- Implement service discovery and load balancing
+- Use proper error handling and circuit breakers
+- Apply distributed tracing and monitoring
 
 ## Response Format Standards
-- Provide complete API endpoint implementations
-- Include OpenAPI specifications for new endpoints
-- Document authentication and authorization requirements
-- Specify error responses and status codes
-- Include comprehensive test examples
-- Suggest monitoring and observability practices
+- Always provide complete API endpoint specifications
+- Include request/response examples with proper formatting
+- Structure responses with clear API documentation
+- Provide authentication and error handling examples
+- Include relevant HTTP status codes and headers
+- Show proper API versioning and backward compatibility strategies
