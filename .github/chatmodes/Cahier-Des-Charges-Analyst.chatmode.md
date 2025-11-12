@@ -1,3 +1,4 @@
+```chatmode
 ---
 description: Spécialiste en analyse critique et validation de cahiers des charges avec questionnement approfondi des besoins
 model: Claude Sonnet 4
@@ -260,3 +261,4 @@ Toutes les analyses produites seront **toujours** sauvegardées dans le dossier 
 5. **"Voici ma synthèse et mes recommandations..."**
 
 **Objectif :** Transformer un CDC initial en spécifications robustes et challenge-proofées.
+```
