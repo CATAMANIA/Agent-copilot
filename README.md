@@ -11,6 +11,7 @@ Cette usine logicielle contient une collection complète de chatmodes et standar
 📂 UsineLogicielle/
 ├── 📂 .github/                    # Configuration et outils de développement
 │   ├── 📂 chatmodes/              # Collection de chatmodes spécialisés
+│   ├── 📂 agents/                 # Collection d'agents (nouveau format)
 │   ├── 📂 instructions/           # Standards et bonnes pratiques
 │   └── 📂 scripts/                # Scripts d'automatisation
 ├── 📂 documentations/             # Documentation générée par les chatmodes
@@ -19,6 +20,7 @@ Cette usine logicielle contient une collection complète de chatmodes et standar
 │   │   └── 📂 security/          # Analyses de sécurité
 │   ├── 📂 cahier_des_charges/    # Cahiers des charges sources
 │   ├── 📂 code_review/           # Revues de code
+│   ├── 📂 migration/             # Guides de migration
 │   ├── 📂 plan_implementation/   # Plans d'implémentation
 │   └── 📂 spec/                  # Spécifications techniques
 └── 📄 README.md                  # Ce fichier
@@ -196,6 +198,32 @@ Tous les chatmodes intègrent automatiquement :
 - **📋 Instructions :** 9 standards
 - **🗂️ Structure documentaire :** 6 dossiers organisés
 
+## 🔄 Migration vers les Agents
+
+GitHub Copilot évolue et introduit le concept d'**Agents** en remplacement des **Chatmodes**. Un guide de migration complet est disponible pour faciliter cette transition.
+
+### 📚 Documentation de Migration
+- **[Guide de Migration : Chatmodes vers Agents](documentations/migration/chatmodes-vers-agents.md)** - Documentation complète pour migrer vos chatmodes vers le nouveau format agents
+
+### Principales Différences
+| Aspect | Chatmode | Agent |
+|--------|----------|-------|
+| Extension | `.chatmode.md` | `.agent.md` |
+| Emplacement | `.github/chatmodes/` | `.github/agents/` |
+| Capacités | Limitées | Étendues (autonomie) |
+| Configuration outils | Liste simple | Configuration détaillée |
+
+### Démarrage Rapide
+```bash
+# Créer le dossier agents
+mkdir -p .github/agents
+
+# Copier et adapter les chatmodes
+cp .github/chatmodes/Plan.chatmode.md .github/agents/Plan.agent.md
+```
+
+Pour plus de détails, consultez le [guide de migration complet](documentations/migration/chatmodes-vers-agents.md).
+
 ## 🔧 Personnalisation et Extension
 
 ### Adaptation aux Projets
@@ -205,7 +233,7 @@ Tous les chatmodes intègrent automatiquement :
 
 ### Évolution Continue
 - **Feedback intégré** : Amélioration basée sur l'usage
-- **Technologies émergentes** : Ajout de nouveaux chatmodes
+- **Technologies émergentes** : Ajout de nouveaux chatmodes et agents
 - **Standards actualisés** : Mise à jour régulière des bonnes pratiques
 
 ## 🚀 Installation et Configuration
