@@ -378,7 +378,7 @@ For all tasks, you MUST adhere to the guidelines in:
 
 ### Q: Comment invoquer un agent dans VS Code ?
 
-**R:** Utilisez la syntaxe `@nom-agent` dans le chat GitHub Copilot. Par exemple : `@security-agent analyze this code for vulnerabilities`.
+**R:** Les agents sont invoqués via le chat GitHub Copilot en utilisant leur nom. La syntaxe exacte peut varier selon la version de l'extension. Consultez la documentation officielle de GitHub Copilot pour la syntaxe d'invocation actuelle.
 
 ### Q: Puis-je utiliser les mêmes instructions pour les deux formats ?
 
@@ -395,12 +395,15 @@ description: Agent expert en développement Java avec Spring Boot
 model: Claude Sonnet 4
 tools:
   - name: codebase
+    description: Recherche dans la base de code
   - name: editFiles
+    description: Édition de fichiers
   - name: terminal
-  - name: maven
-    description: Exécution de commandes Maven
+    description: Exécution de commandes (utilisé pour Maven, Gradle, etc.)
 ---
 ```
+
+> **Note :** Les outils disponibles dépendent de la configuration de GitHub Copilot. Consultez la documentation officielle pour la liste complète des outils supportés.
 
 ### Q: Quelle est la différence de performance entre chatmodes et agents ?
 
@@ -419,5 +422,5 @@ tools:
 
 ---
 
-*Dernière mise à jour : Novembre 2025*  
+*Dernière mise à jour : 28 novembre 2025*  
 *Optimisé pour : Claude Sonnet 4 et GitHub Copilot*
