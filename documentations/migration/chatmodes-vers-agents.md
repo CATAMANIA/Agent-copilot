@@ -85,6 +85,20 @@ tools:
 4. **Permissions Granulaires** : Contrôle fin sur ce que l'agent peut faire
 5. **Intégration GitHub** : Meilleure intégration avec les workflows GitHub
 
+### Convention de Nommage des Outils
+
+Une différence importante entre les deux formats concerne le nommage des outils :
+
+| Chatmode (préfixé) | Agent (simplifié) | Description |
+|-------------------|-------------------|-------------|
+| `search/codebase` | `codebase` | Recherche dans le code |
+| `search/readFile` | `readFile` | Lecture de fichiers |
+| `search/listDirectory` | `listDirectory` | Liste de répertoires |
+| `edit/editFiles` | `editFiles` | Édition de fichiers |
+| `runCommands` | `terminal` | Exécution de commandes |
+
+> **Note :** Les outils disponibles et leur nommage peuvent évoluer. Consultez la documentation officielle de GitHub Copilot pour la liste à jour des outils supportés.
+
 ---
 
 ## Structure des Fichiers
@@ -226,7 +240,7 @@ You are the **Debug Agent**. Your objective is...
 ### Étape 5 : Tester les Agents
 
 1. Ouvrir VS Code avec l'extension GitHub Copilot
-2. Utiliser la commande `@agent-name` pour invoquer l'agent
+2. Invoquer l'agent via le chat GitHub Copilot (la syntaxe exacte peut varier selon la version de l'extension, consultez la documentation officielle)
 3. Vérifier que les outils sont correctement disponibles
 4. Tester les fonctionnalités principales
 
@@ -243,6 +257,9 @@ You are the **Debug Agent**. Your objective is...
 ### Exemple 1 : Agent Plan
 
 #### Avant (Plan.chatmode.md)
+
+> **Note :** Dans le format chatmode, les noms d'outils utilisent souvent des préfixes comme `search/` ou `edit/`. Dans le format agent, ces préfixes sont généralement supprimés et remplacés par des noms simplifiés.
+
 ```yaml
 ---
 description: Generate a structured implementation plan for new features or refactoring tasks.
@@ -263,11 +280,11 @@ description: Agent spécialisé dans la génération de plans d'implémentation 
 model: Claude Sonnet 4
 tools:
   - name: codebase
-    description: Recherche dans la base de code
+    description: Recherche dans la base de code (équivalent de search/codebase)
   - name: fetch
     description: Récupération de ressources externes
   - name: readFile
-    description: Lecture de fichiers
+    description: Lecture de fichiers (équivalent de search/readFile)
   - name: editFiles
     description: Édition de fichiers
   - name: findTestFiles
@@ -275,7 +292,7 @@ tools:
   - name: githubRepo
     description: Interactions avec le repository GitHub
   - name: listDirectory
-    description: Liste le contenu des répertoires
+    description: Liste le contenu des répertoires (équivalent de search/listDirectory)
   - name: search
     description: Recherche avancée
   - name: usages
@@ -306,17 +323,17 @@ description: Agent expert en analyse de sécurité, identification de vulnérabi
 model: Claude Sonnet 4
 tools:
   - name: codebase
-    description: Recherche dans la base de code pour identifier les vulnérabilités
+    description: Recherche dans la base de code pour identifier les vulnérabilités (équivalent de search/codebase)
   - name: readFile
-    description: Lecture de fichiers pour analyse de sécurité
+    description: Lecture de fichiers pour analyse de sécurité (équivalent de search/readFile)
   - name: usages
     description: Recherche d'usages potentiellement dangereux
   - name: problems
     description: Détection de problèmes de sécurité
   - name: editFiles
-    description: Modification de fichiers pour corrections de sécurité
+    description: Modification de fichiers pour corrections de sécurité (équivalent de edit/editFiles)
   - name: terminal
-    description: Exécution de commandes de scan de sécurité
+    description: Exécution de commandes de scan de sécurité (équivalent de runCommands)
   - name: search
     description: Recherche avancée de patterns de sécurité
 ---
